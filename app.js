@@ -96,6 +96,7 @@
     }
     demo._init=()=>{if(k<0)k=0;requestAnimationFrame(layout);};
     demo._next=()=>go(k+1>=frames.length?0:k+1); demo._prev=()=>go(k-1);   // 最後のコマの次は最初に戻る
+    demo._fwd=()=>go(k+1);   // キー操作用：最後のコマで止まり false を返す
     demo._zoomIn=()=>zoomTo(uz*1.4); demo._zoomOut=()=>zoomTo(uz/1.4); demo._zoomReset=()=>zoomTo(1);
     let acc=0,lock=0;
     screen.addEventListener('wheel',e=>{
@@ -157,8 +158,8 @@
     const d=slides[cur]&&(slides[cur].querySelector('.dpane.on .demo')||slides[cur].querySelector('.demo'));
     if(e.key==='ArrowRight'||e.key==='PageDown')show(cur+1);
     else if(e.key==='ArrowLeft'||e.key==='PageUp')show(cur-1);
-    else if(e.key==='ArrowDown'||e.key===' '){if(d){e.preventDefault();d._next();}else show(cur+1);}
-    else if(e.key==='ArrowUp'){if(d){e.preventDefault();d._prev();}else show(cur-1);}
+    else if(e.key==='ArrowDown'||e.key===' '){if(d){e.preventDefault();if(!d._fwd())show(cur+1);}else show(cur+1);}   // デモ末尾では次ページへ
+    else if(e.key==='ArrowUp'){if(d){e.preventDefault();if(!d._prev())show(cur-1);}else show(cur-1);}   // デモ先頭では前ページへ
     else if(d&&(e.key==='+'||e.key==='=')){d._zoomIn();}
     else if(d&&e.key==='-'){d._zoomOut();}
     else if(d&&e.key==='0'){d._zoomReset();}
