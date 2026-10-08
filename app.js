@@ -75,6 +75,9 @@
       }
       base={s,tx,ty}; apply();
       const hr=f.hl||(f.phase==='zoom'&&f.zoom?null:f.rect);
+      // 右下の全体位置の小窓が赤枠に重なるときは、小窓を左下へ逃がす
+      const miniBox=screen.querySelector('.mini');
+      if(miniBox){let over=false;if(hr){const x1=tx+hr.x*s,y1=ty+hr.y*s,x2=x1+hr.w*s,y2=y1+hr.h*s,mw=miniBox.offsetWidth+14+12,mh=miniBox.offsetHeight+14+12;/* 12px は赤枠との余白 */const hitR=x2>W-mw&&y2>H-mh&&x1<W&&y1<H,hitL=x1<mw&&y2>H-mh&&x2>0&&y1<H;over=hitR&&!hitL;/* 左へ移しても重なる大きな赤枠は右下のまま */}screen.classList.toggle('mini-left',over);}
       if(hr){const r=hr;hl.classList.remove('off');hl.style.left=r.x+'px';hl.style.top=r.y+'px';hl.style.width=r.w+'px';hl.style.height=r.h+'px';}
       else hl.classList.add('off');
       const da=fr.querySelector('.dropanim'); if(da){ if(f.anim==='drop'&&f.rect){const r=f.rect; da.classList.remove('off'); da.style.left=r.x+'px'; da.style.top=r.y+'px'; da.style.width=r.w+'px'; da.style.height=r.h+'px'; da.style.setProperty('--s',1/((base.s||1)*uz)); da.classList.remove('run'); void da.offsetWidth; da.classList.add('run');} else da.classList.add('off'); }
