@@ -137,10 +137,31 @@
     c.addEventListener('pointerup',()=>down=false);c.addEventListener('pointercancel',()=>down=false);
   });
 
-  /* ---------- LP viewer tabs ---------- */
+  /* ---------- LP viewer: タブ・セクション一覧・キー送り（1セクションを画面に収めて1枚ずつ表示） ---------- */
   document.querySelectorAll('.lpv').forEach(v=>{
-    const bs=[...v.querySelectorAll('.tabs button')],ims=[...v.querySelectorAll('.lp-scroll > .lppane')],sc=v.querySelector('.lp-scroll');
-    bs.forEach((b,i)=>b.addEventListener('click',()=>{bs.forEach((x,j)=>x.classList.toggle('on',i===j));ims.forEach((x,j)=>x.classList.toggle('on',i===j));sc.scrollTop=0;}));
+    const bs=[...v.querySelectorAll('.tabs > button')],panes=[...v.querySelectorAll('.lp-scroll > .lppane')],sc=v.querySelector('.lp-scroll'),
+          rails=[...v.querySelectorAll('.lprail > .lprail-list')];
+    let cur=0;
+    const secs=()=>[...panes[cur].querySelectorAll('.lpsec')];
+    const topOf=e=>e.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop;
+    function at(line){const s=secs();let k=0;s.forEach((e,i)=>{if(topOf(e)<=line)k=i;});return k;}
+    function mark(){const rb=[...rails[cur].querySelectorAll('button')];if(!rb.length)return;
+      const k=at(sc.scrollTop+sc.clientHeight*.4);rb.forEach((b,i)=>b.classList.toggle('on',i===k));
+      const r=rails[cur].parentElement,b=rb[k];if(b.offsetTop<r.scrollTop||b.offsetTop+b.offsetHeight>r.scrollTop+r.clientHeight)r.scrollTop=b.offsetTop-r.clientHeight/2+b.offsetHeight/2;}
+    function go(k,smooth=true){const s=secs();if(k<0||k>=s.length)return false;sc.scrollTo({top:topOf(s[k]),behavior:smooth&&!document.hidden?'smooth':'auto'});mark();return true;}
+    function tab(i){cur=i;bs.forEach((x,j)=>x.classList.toggle('on',i===j));panes.forEach((x,j)=>x.classList.toggle('on',i===j));rails.forEach((x,j)=>x.classList.toggle('on',i===j));
+      v.classList.toggle('norail',!rails[i].children.length);sc.scrollTop=0;mark();}
+    // 画面の高さに1セクション（縦横比 2:3）が収まる幅を決める。幅が変わっても今のセクションに留まる
+    function size(){const k=at(sc.scrollTop+4);v.style.setProperty('--fitw',Math.floor(sc.clientHeight*2/3)+'px');if(sc.clientHeight)go(k,false);}
+    bs.forEach((b,i)=>b.addEventListener('click',()=>tab(i)));
+    rails.forEach(r=>[...r.querySelectorAll('button')].forEach((b,k)=>b.addEventListener('click',()=>go(k))));
+    sc.addEventListener('scroll',mark,{passive:true});tab(0);
+    // ページが非表示の間は高さが0なので、表示された時点（サイズ変化）で寸法と現在位置を取り直す
+    const ro=new ResizeObserver(()=>{size();mark();});ro.observe(sc);
+    v.querySelectorAll('.lp-scroll img').forEach(im=>im.addEventListener('load',mark));
+    // ↓↑: セクション単位で送る。端まで来たら false を返し、呼び出し側でページを送る
+    v._fwd=()=>{const s=secs();return s.length?go(at(sc.scrollTop+4)+1):false;};
+    v._prev=()=>{const s=secs();if(!s.length)return false;const k=at(sc.scrollTop+4);return go(sc.scrollTop>topOf(s[k])+8?k:k-1);};
   });
 
   /* ---------- lightbox ---------- */
@@ -158,14 +179,14 @@
   /* ---------- keys ---------- */
   document.addEventListener('keydown',e=>{
     if(lb.classList.contains('on')){if(e.key==='Escape')lb.classList.remove('on');return;}
-    const d=slides[cur]&&(slides[cur].querySelector('.dpane.on .demo')||slides[cur].querySelector('.demo'));
+    const d=slides[cur]&&(slides[cur].querySelector('.dpane.on .demo')||slides[cur].querySelector('.demo')||slides[cur].querySelector('.lpv'));
     if(e.key==='ArrowRight'||e.key==='PageDown')show(cur+1);
     else if(e.key==='ArrowLeft'||e.key==='PageUp')show(cur-1);
     else if(e.key==='ArrowDown'||e.key===' '){if(d){e.preventDefault();if(!d._fwd())show(cur+1);}else show(cur+1);}   // デモ末尾では次ページへ
     else if(e.key==='ArrowUp'){if(d){e.preventDefault();if(!d._prev())show(cur-1);}else show(cur-1);}   // デモ先頭では前ページへ
-    else if(d&&(e.key==='+'||e.key==='=')){d._zoomIn();}
-    else if(d&&e.key==='-'){d._zoomOut();}
-    else if(d&&e.key==='0'){d._zoomReset();}
+    else if(d&&d._zoomIn&&(e.key==='+'||e.key==='=')){d._zoomIn();}
+    else if(d&&d._zoomOut&&e.key==='-'){d._zoomOut();}
+    else if(d&&d._zoomReset&&e.key==='0'){d._zoomReset();}
     else if(e.key==='f'||e.key==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();}
     else if(/^[0-9]$/.test(e.key)){const p=navParts.find(p=>p.dataset.part===e.key);if(p)p.click();}
   });
