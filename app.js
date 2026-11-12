@@ -38,7 +38,8 @@
       const need=f.zoom||mode==='region'||Math.min(f.rect.w,f.rect.h)<Math.max(f.w,f.h)*0.035;
       const region=f.zoom?{x:f.rect.x,y:f.rect.y,w:f.rect.w,h:f.rect.h}:regionFor(f,f.rect);   
       if(prevZoom&&!f.newpage){
-        if(inside(f.rect,prevZoom)){frames.push({...f,phase:'zoom',region:prevZoom});prevImg=f.img;return;}
+        if(inside(f.rect,prevZoom)&&!f.focus){   // focus: 寄っている中の1点にさらに寄る
+        frames.push({...f,phase:'zoom',region:prevZoom});prevImg=f.img;return;}
         if(need||hits(f.rect,prevZoom)){frames.push({...f,phase:'zoom',region});prevZoom=region;prevImg=f.img;return;}   // 同じ画面内は寄ったまま移動
         frames.push({...f,phase:'full'});prevZoom=null;prevFullRect=f.rect;prevImg=f.img;return;
       }
@@ -66,7 +67,8 @@
       if(f.phase==='zoom'&&f.rect){
         // 寄る時も画面の半分程度は映す（対象が小さくても文脈が分かるように）
         const r=f.region||regionFor(f,f.rect),pad=28;
-        s=Math.min((W-pad*2)/r.w,(H-pad*2)/r.h,Math.max(1.6,Math.min(W/f.w,H/f.h)*2.2));
+        s=f.focus?Math.min((W-pad*2)/(r.w*2.2),(H-pad*2)/(r.h*2.2))   /* focus: 対象が画面の半分弱になる大きさ（周りも少し見える） */
+          :Math.min((W-pad*2)/r.w,(H-pad*2)/r.h,Math.max(1.6,Math.min(W/f.w,H/f.h)*2.2));
         tx=(W-r.w*s)/2-r.x*s; ty=(H-r.h*s)/2-r.y*s;
         if(f.w*s<=W){tx=(W-f.w*s)/2;}
         if(f.h*s<=H){ty=(H-f.h*s)/2;}
@@ -90,12 +92,22 @@
     }
     function go(n){n=Math.max(0,Math.min(frames.length-1,n));if(n===k)return false;k=n;uz=1;ux=0;uy=0;layout();return true;}
     /* zoom: 画面上の点 (px,py) を固定して倍率を nz にする */
-    function zoomTo(nz,px,py){
+    function zoomTo(nz,px,py,instant){
       nz=Math.max(1,Math.min(6,nz)); const W=vp.clientWidth,H=vp.clientHeight,cx=W/2,cy=H/2;
       if(px==null){px=cx;py=cy;}
       const ratio=nz/uz; ux=px-cx-ratio*(px-ux-cx); uy=py-cy-ratio*(py-uy-cy); uz=nz;
       if(uz<=1.001){uz=1;ux=0;uy=0;}
-      fr.style.transition='transform .18s ease'; apply();
+      clampPan(); fr.style.transition=instant?'none':'transform .18s ease'; apply();
+    }
+    /* 拡大中の移動範囲: 画像が画面の外へ飛んでいかないよう、端が画面の端から少し入るところまでに抑える */
+    function clampPan(){
+      const f=frames[k]; if(!f||uz<=1.001)return;
+      const W=vp.clientWidth,H=vp.clientHeight,{s,tx,ty}=base,m=60;
+      const ax=(W/2)*(1-uz)+uz*tx, ay=(H/2)*(1-uz)+uz*ty;   // ux=uy=0 のときの画像の左上
+      const iw=f.w*s*uz, ih=f.h*s*uz;
+      const lo=(len,size)=>Math.min(0,len-size)-m, hi=(len,size)=>Math.max(0,len-size)+m;
+      ux=Math.max(lo(W,iw)-ax,Math.min(hi(W,iw)-ax,ux));
+      uy=Math.max(lo(H,ih)-ay,Math.min(hi(H,ih)-ay,uy));
     }
     // ページ（またはタブ）を開くたびに最初のコマ（①）から表示する。前回見ていたコマは引き継がない
     demo._init=()=>{k=0;uz=1;ux=0;uy=0;requestAnimationFrame(layout);};
@@ -107,13 +119,20 @@
       e.preventDefault();
       const r=vp.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
       if(e.ctrlKey||e.metaKey){ zoomTo(uz*(e.deltaY<0?1.12:1/1.12),px,py); return; }
-      if(uz>1.001){ ux-=e.deltaX; uy-=e.deltaY; fr.style.transition='none'; apply(); return; }
+      if(uz>1.001){ ux-=e.deltaX; uy-=e.deltaY; clampPan(); fr.style.transition='none'; apply(); return; }
       const now=Date.now();if(now<lock)return;acc+=e.deltaY;if(Math.abs(acc)>40){acc>0?demo._next():demo._prev();acc=0;lock=now+450;}
     },{passive:false});
     /* drag to pan (zoomed) / click to advance (not zoomed) */
     let drag=null,moved=false;
-    screen.addEventListener('pointerdown',e=>{if(e.target.closest('.ztools'))return;drag={x:e.clientX-ux,y:e.clientY-uy};moved=false;screen.setPointerCapture(e.pointerId);});
-    screen.addEventListener('pointermove',e=>{if(!drag||uz<=1.001)return;const nx=e.clientX-drag.x,ny=e.clientY-drag.y;if(Math.abs(nx-ux)+Math.abs(ny-uy)>2)moved=true;ux=nx;uy=ny;fr.style.transition='none';apply();});
+    // 画像そのものをつかんでしまう（ブラウザ標準の画像ドラッグ）と移動にならないので止める
+    img.draggable=false; screen.addEventListener('dragstart',e=>e.preventDefault());
+    screen.addEventListener('pointerdown',e=>{if(e.target.closest('.ztools'))return;if(e.pointerType==='mouse'){if(e.button!==0)return;e.preventDefault();}drag={x:e.clientX-ux,y:e.clientY-uy};moved=false;screen.setPointerCapture(e.pointerId);});
+    screen.addEventListener('pointermove',e=>{if(!drag||uz<=1.001)return;const nx=e.clientX-drag.x,ny=e.clientY-drag.y;if(Math.abs(nx-ux)+Math.abs(ny-uy)>2)moved=true;ux=nx;uy=ny;clampPan();drag={x:e.clientX-ux,y:e.clientY-uy};fr.style.transition='none';apply();});
+    screen.addEventListener('pointercancel',()=>{drag=null;});
+    // Safari のトラックパッドのピンチは wheel ではなく gesture イベントで届く。ページ全体の拡大にせず画面内で拡大する
+    let gz=1; screen.addEventListener('gesturestart',e=>{e.preventDefault();gz=uz;});
+    screen.addEventListener('gesturechange',e=>{e.preventDefault();const r=vp.getBoundingClientRect();zoomTo(gz*e.scale,e.clientX-r.left,e.clientY-r.top,true);});
+    screen.addEventListener('gestureend',e=>e.preventDefault());
     screen.addEventListener('pointerup',e=>{const was=drag;drag=null;if(!was||e.target.closest('.ztools'))return;if(!moved&&uz<=1.001)demo._next();});
     screen.addEventListener('dblclick',e=>{if(e.target.closest('.ztools'))return;const r=vp.getBoundingClientRect();zoomTo(uz>1.001?1:2.5,e.clientX-r.left,e.clientY-r.top);});
     const zt=demo.querySelector('.ztools'); if(zt){zt.querySelector('.zi').addEventListener('click',demo._zoomIn);zt.querySelector('.zo').addEventListener('click',demo._zoomOut);zt.querySelector('.zr').addEventListener('click',demo._zoomReset);}

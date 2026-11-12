@@ -157,7 +157,10 @@ table{font-size:15.5px}th,td{padding:16px 14px}
 .body:has(.gallery)>*,.body:has(.lpv)>*,.body:has(.two)>*{max-width:none}
 
 /* zoom tools */
-.screen{touch-action:none}
+.screen{touch-action:none;user-select:none;-webkit-user-select:none}
+/* トラックパッドの横スワイプで「前のページに戻る」が動かないようにする（デモ画面の移動と衝突するため） */
+html,body{overscroll-behavior:none}
+.screen .fr img{-webkit-user-drag:none;user-select:none}
 .demo.zoomed .screen{cursor:grab}.demo.zoomed .screen:active{cursor:grabbing}
 .ztools{position:absolute;left:14px;top:12px;display:flex;align-items:center;gap:4px;background:rgba(15,46,39,.85);border-radius:8px;padding:4px 6px}
 .ztools button{width:26px;height:26px;border:0;border-radius:6px;background:rgba(255,255,255,.12);color:#fff;font-size:15px;line-height:1;cursor:pointer}
