@@ -97,7 +97,8 @@
       if(uz<=1.001){uz=1;ux=0;uy=0;}
       fr.style.transition='transform .18s ease'; apply();
     }
-    demo._init=()=>{if(k<0)k=0;requestAnimationFrame(layout);};
+    // ページ（またはタブ）を開くたびに最初のコマ（①）から表示する。前回見ていたコマは引き継がない
+    demo._init=()=>{k=0;uz=1;ux=0;uy=0;requestAnimationFrame(layout);};
     demo._next=()=>go(k+1>=frames.length?0:k+1); demo._prev=()=>go(k-1);   // 最後のコマの次は最初に戻る
     demo._fwd=()=>go(k+1);   // キー操作用：最後のコマで止まり false を返す
     demo._zoomIn=()=>zoomTo(uz*1.4); demo._zoomOut=()=>zoomTo(uz/1.4); demo._zoomReset=()=>zoomTo(1);
